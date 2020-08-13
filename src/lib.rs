@@ -1,60 +1,80 @@
-// use bitset::BitSet;
+#![no_std]
+extern crate alloc;
+use alloc::vec::Vec;
+use core::convert::From;
+use core::future::Future;
+use core::iter::repeat;
+use core::pin::Pin;
 use futures_core::stream::Stream;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Task};
+use rle_bitset::*;
 
-struct MarkSet {
-    data: Vec<u64>,
-    capacity: usize,
+use core::task::{Context, Poll};
+
+/// Polls many Futures, returning the results as they arrive, out of
+/// order.
+pub struct Many<F> {
+    futures: Vec<F>,
+    done: Vec<usize>, // Bitset for whether a future is done.
+    remaining: usize,
 }
 
-impl MarkSet {
-    fn get(&self, bit: usize) -> Option<bool> {
-        
+impl<F: Future> Many<F> {
+
+    /// Creates a new [`crate::Many`].
+    pub fn new() -> Self {
+        Many { futures: Vec::new(), done: Vec::new(), remaining: 0 }
     }
-    fn locate(&self, bit: usize) -> Option<(usize, usize)> {
-        if bit < capacity {
-            Ok(bit / 64, bit % 64)
-        } else {
-            None
+    
+    /// Adds a new Future to be polled.
+    pub fn push(&mut self, f: F) {
+        self.futures.push(f);
+        self.remaining += 1;
+        if words_needed(self.remaining) != self.done.len() {
+            self.done.push(0);
         }
     }
 }
 
-fn words(bits: usize) -> usize {
-    let words = bits / 8;
-    let rem = bits % 8;
-    if rem == 0 { words } else { words + 1 }
-}
-
-impl MarkSet {
-    fn new(size: usize) -> MarkSet {
-        
-        MarkSet { inner: Vec::
+impl<F: Future> From<Vec<F>> for Many<F> {
+    fn from(futures: Vec<F>) -> Self {
+        let remaining = futures.len();
+        let done = repeat(0).take(words_needed(remaining)).collect();
+        Many { futures, done, remaining }
     }
 }
 
-// struct Many<F: Future> {
-//     futures: Vec<F>,
-//     completed: BitSet,
-//     remaining: usize,
-// }
-
-// impl<F: Future> Many<F> {
-//     pub fn new(&self) -> Self {
-//     }
-// }
-
-// impl<F, T> Stream for Many<F>
-// where F: Future<Output=T> {
-//     type Item = 
-// }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+impl<F: Future> Stream for Many<F> {
+    type Item = F::Output;
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<F::Output>> {
+        let this = unsafe { self.get_unchecked_mut() };
+        if this.remaining == 0 { // Nothing to do!
+            Poll::Ready(None)
+        } else if this.remaining == this.futures.len() {
+            // Until a future has completed, we can avoid bit faffing.
+            for (i, f) in this.futures.iter_mut().enumerate() {
+                let pin = unsafe { Pin::new_unchecked(f) }; 
+                if let Poll::Ready(v) = pin.poll(ctx) {
+                    this.done.set_bit(i, true).unwrap();
+                    this.remaining -= 1;
+                    return Poll::Ready(Some(v));
+                }
+            }
+            Poll::Pending
+        } else {
+            // At least one future has completed, so we have to check bits.
+            for rl in this.done.run_lengths(..this.futures.len()).unwrap() {
+                if !rl.value {
+                    for i in rl.run {
+                        let pin = unsafe { Pin::new_unchecked(&mut this.futures[i]) };
+                        if let Poll::Ready(v) = pin.poll(ctx) {
+                            this.done.set_bit(i, true).unwrap();
+                            this.remaining -= 1;
+                            return Poll::Ready(Some(v));
+                        }
+                    }
+                }
+            }
+            Poll::Pending
+        }
     }
 }
