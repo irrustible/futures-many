@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures-core = "0.3"
-futures-micro = "0.1"
+futures-micro = "0.2"
 primitive_traits = "0.2"
-rle-bitset = { path = "../rle-bitset" }
+# rle-bitset = { path = "../rle-bitset" }
+rle-bitset = { git = "https://github.com/irrustible/rle-bitset", branch = "main" }
