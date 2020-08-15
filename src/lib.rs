@@ -1,5 +1,6 @@
 #![no_std]
 extern crate alloc;
+
 use alloc::vec::Vec;
 use core::convert::From;
 use core::future::Future;
@@ -10,8 +11,7 @@ use rle_bitset::*;
 
 use core::task::{Context, Poll};
 
-/// Polls many Futures, returning the results as they arrive, out of
-/// order.
+/// A Stream of results from Futures polled as they arrive, out of order.
 pub struct Many<F> {
     futures: Vec<F>,
     done: Vec<usize>, // Bitset for whether a future is done.

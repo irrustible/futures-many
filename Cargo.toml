@@ -1,12 +1,19 @@
 [package]
 name = "futures-many"
 version = "0.1.0"
+description = "A Stream of (potentially out of order) results from polling many Futures."
+keywords = ["futures", "many", "stream", "unordered"]
+categories = ["asynchronous", "concurrency", "algorithms", "data-structures"]
+homepage = "https://github.com/irrustible/futures-many"
+repository = "https://github.com/irrustible/futures-many"
+documentation = "https://docs.rs/futures-many"
+license = "MPL-2.0"
 authors = ["James Laver <james.laver@gmail.com>"]
 edition = "2018"
+readme = "README.md"
 
 [dependencies]
 futures-core = "0.3"
 futures-micro = "0.2"
 primitive_traits = "0.2"
-# rle-bitset = { path = "../rle-bitset" }
-rle-bitset = { git = "https://github.com/irrustible/rle-bitset", branch = "main" }
+rle-bitset = "0.1"
